@@ -135,7 +135,7 @@ var CLUB = {
    直したら、ここの1行だけ書き換えてください（画面いちばん下に出ます）。
    付け方：日付 ＋ その日の何回目か（a, b, c …）
    ------------------------------------------------------------------ */
-var APP_VER = '2026-09-22a';
+var APP_VER = '2026-09-23a';
 
 /* 設定した文言を画面に反映する（起動時に1回だけ呼ぶ） */
 function applyClubConfig(){
@@ -267,6 +267,10 @@ function deviceId(){
    ※旧の項目はわざと消していません。もし前の版に戻しても、
    　これまでどおり動くようにしておくためです。 */
 function migrateOldKeys(){
+  /* ★2026-09-23（【A】）引き継ぐのは OHC のときだけ。
+     　同じ github.io の下にある OHC本番の控え（ohcCache＝予定・ohcName＝名前）が、
+     　よそのクラブの画面に写っていたため（?club=test で OHC の予定が見えた）。 */
+  if (CLUB.id !== 'ohc') return;
   var pairs = [
     ['ohcName',      LSK.name],
     ['ohcCache',     LSK.cache],
