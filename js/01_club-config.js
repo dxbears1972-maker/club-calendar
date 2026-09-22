@@ -135,7 +135,7 @@ var CLUB = {
    直したら、ここの1行だけ書き換えてください（画面いちばん下に出ます）。
    付け方：日付 ＋ その日の何回目か（a, b, c …）
    ------------------------------------------------------------------ */
-var APP_VER = '2026-09-23a';
+var APP_VER = '2026-09-23b';
 
 /* 設定した文言を画面に反映する（起動時に1回だけ呼ぶ） */
 function applyClubConfig(){
@@ -462,3 +462,12 @@ function unreachable_(names){
   return out;
 }
 
+/* ★2026-09-23　「❓ 使い方」は、そのクラブの逆引きだけを開きます。
+   　置き場は このリポジトリの guide/<クラブID>/（取説を作る日に置く。手引書 B-10）。
+   　OHC の取説（…/ohc-calendar/guide/）へは、つながりません。 */
+(function(){
+  try {
+    var g = document.getElementById('guideBtn');
+    if (g) g.href = 'guide/' + encodeURIComponent(CLUB.id) + '/';
+  } catch(e){}
+})();
