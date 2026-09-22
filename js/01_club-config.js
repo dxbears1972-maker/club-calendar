@@ -79,7 +79,7 @@ var CLUB = {
   contactLabel: '幹事さん',
 
   /* GAS のウェブアプリURL（https://script.google.com/macros/s/…/exec） */
-  apiUrl: 'https://script.google.com/macros/s/AKfycbz6Tc9Tbfq5Eagp3MG0hYR8aA2AqQu8CkNR_g0950Qm_is2q6x5HZlLxWoVSsaQ6oeF/exec',   /* ★開発版 */
+  apiUrl: 'https://script.google.com/macros/s/AKfycbwVyvBrEE03VMpc03P5fOlrcwkqlYW_pKqBcPF7l6wjy55s3790AIyLzQCKjcCsI1Y/exec',   /* ★新クラブ用GAS（2026-09-23 【A】） */
 
   /* マイカー精算アプリのURL（★サーバーの「設定」シートから受け取ります） */
   carpoolUrl: '',
