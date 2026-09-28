@@ -261,7 +261,14 @@ function renderList(){
   });
 
   if (list.length === 0){
-    $('evList').innerHTML = '<div id="noev">この月の予定はまだありません</div>';
+    /* ★2026-09-28e（ウ）　古い月で、まだ取ってきていないとき */
+    var msg0 = 'この月の予定はまだありません';
+    if (monthNeedsFetch_(prefix)){
+      msg0 = MONTH_FAIL[prefix]
+        ? 'この月の予定を読み込めませんでした。電波の良い場所で、いったん別の月へ切り替えてから、もう一度この月を開いてください。'
+        : 'この月の予定を読み込んでいます…';
+    }
+    $('evList').innerHTML = '<div id="noev">' + msg0 + '</div>';
     return;
   }
 
@@ -290,6 +297,7 @@ function renderList(){
   var myn = getName();
   var isAdmin = isAdmin_(myn);
   var html = '';
+  var nowD = new Date(), todayK = dkey(nowD.getFullYear(), nowD.getMonth() + 1, nowD.getDate());
   for (var j = 0; j < list.length; j++){
     var ev = list[j];
     var att = attOf(ev.id);
@@ -394,6 +402,11 @@ function renderList(){
               (locked ? '締切を解除' : '出欠を締切る') + '</a>') +
           '<a href="javascript:void(0)" onclick="delEvent(\'' + ev.id + '\',\'' + esc(ev.title).replace(/'/g, '') + '\')">削除</a>' +
         '</div>' : '') +
+      /* ★★2026-09-28　この日に、もう1件入れる入口（★だれでも。只隈さん「本来誰でも予定は入れるべき」）。
+         　予定がある日を押すとこのカードへ飛ぶので、その場から日付入りで入力画面を開けます。
+         　終わった日には出しません。 */
+      (ev.date >= todayK ?
+        '<div class="evdel"><a href="javascript:void(0)" class="lock" onclick="addSameDay(\'' + esc(ev.date) + '\')">＋ この日に別の予定を入れる</a></div>' : '') +
     '</div>';
   }
   $('evList').innerHTML = html + oldBtn;
@@ -405,5 +418,10 @@ function render(){
   try { renderLineQuota(); } catch (eLQ) {}   /* ★2026-09-22　LINEの通数 */
   renderCalendar();
   renderList();
+  /* ★2026-09-28e（ウ）　先月より前の月を開いたら、その月の分を取りに行く */
+  try {
+    var ymR = monthKey_();
+    if (monthNeedsFetch_(ymR) && !MONTH_FAIL[ymR] && !MONTH_BUSY[ymR]) ensureMonth_(ymR);
+  } catch (eWM) {}
 }
 

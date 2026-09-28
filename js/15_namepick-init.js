@@ -402,6 +402,7 @@ function init(){
     state.events     = cd0.events || [];
     state.attendance = cd0.attendance || [];
     state.notices    = cd0.notices || [];
+    state.winFrom    = cd0.winFrom || '';   /* ★2026-09-28e（ウ） */
     if (cd0.members && cd0.members.length){
       MEMBERS  = cd0.members;
       ADMINS   = (cd0.admins && cd0.admins.length) ? cd0.admins : [];
@@ -565,6 +566,9 @@ function init(){
   $('prevM').onclick = function(){ moveMonth(-1); };
   $('nextM').onclick = function(){ moveMonth(1); };
   $('showAdd').onclick = function(){
+    /* ★2026-09-28　いま見ている月で最後に押した日があれば、その日付で開く */
+    var lt = state.lastTap;
+    if (lt && lt.y === state.year && lt.m === state.month){ openAddForm(lt.y, lt.m, lt.d); return; }
     var n = new Date();
     openAddForm(state.year, state.month, state.year === n.getFullYear() && state.month === n.getMonth() + 1 ? n.getDate() : 1);
   };
