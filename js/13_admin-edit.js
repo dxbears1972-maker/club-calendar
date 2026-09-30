@@ -259,8 +259,8 @@ function renderWorks_(){
   var wk = (ADMIN_DATA && ADMIN_DATA.works) || [], h = '';
   ADMIN_EDIT = null;
   admMsg_().textContent = wk.length
-    ? '顔ぶれを決めたい種類の「変える」を押してください。'
-    : 'まだ、予定の種類はひとつもありません。';
+    ? '顔ぶれを変えたいものの「変える」を押してください。'
+    : 'まだ、決まった顔ぶれはひとつもありません。';
   for (var i = 0; i < wk.length; i++){
     /* ★名前を onclick の中に直に書くのをやめ、並びの番号で渡します。
        　esc() はアポストロフを逃がしません。種類の名前を手で入れられるように
@@ -275,19 +275,19 @@ function renderWorks_(){
          '</div>';
   }
   if (!wk.length){
-    h = '<p class="note" style="padding:4px 10px">下の「新しい種類を足す」から、' +
+    h = '<p class="note" style="padding:4px 10px">下の「新しい顔ぶれを足す」から、' +
         '「役員会」のように、毎回同じ方が集まる予定の名前を入れてください。</p>';
   }
 
   /* ★★2026-09-14（工事E-4）　新しい種類を足す */
   h += '<div class="admsec">' +
-         '<div class="admsec-h">新しい種類を足す</div>' +
+         '<div class="admsec-h">新しい顔ぶれを足す</div>' +
          '<input type="text" id="admNewWork" maxlength="20" autocomplete="off"' +
            ' placeholder="例）役員会" value="' + esc(ADM_NEWWORK_) + '"' +
            ' oninput="ADM_NEWWORK_ = this.value">' +
          '<p class="note" style="margin-top:2px">「役員会」のように、' +
            '<b>毎回同じ顔ぶれ</b>が集まる予定に使います。<br>' +
-           '足したあと、その種類の「変える」で、' +
+           '足したあと、その名前の「変える」で、' +
            '<b>必ず顔ぶれを選んでください。</b>' +
            '選ばないと、その予定は登録した方お一人にしか届きません。</p>' +
          '<button type="button" class="bigbtn" style="margin-top:8px"' +
@@ -331,13 +331,13 @@ function adminEditWork(name){
       '</div>' +
       /* ★★② この種類をやめる（2026-09-14 工事E-4） */
       '<div class="admsec">' +
-        '<div class="admsec-h">この種類をやめる</div>' +
+        '<div class="admsec-h">この顔ぶれをやめる</div>' +
         '<p class="note" style="margin-top:0">消すと、予定を登録するときの' +
-          '「予定の種類」に出なくなります。<br>' +
-          '<b>この種類を使っている予定が残っているあいだは、消せません。</b><br>' +
+          '「出欠をとる相手」に出なくなります。<br>' +
+          '<b>この顔ぶれを使っている予定が残っているあいだは、消せません。</b><br>' +
           '過去の記録は残ります。</p>' +
         '<button type="button" class="carebtn"' +
-          ' onclick="adminDelWork(this)">この種類を消す</button>' +
+          ' onclick="adminDelWork(this)">この顔ぶれを消す</button>' +
         admSecMsg_('workdel') +
       '</div>' +
       '<button type="button" class="cancelbtn" style="margin-top:14px"' +
@@ -403,7 +403,7 @@ function adminAddWork(btn){
   var nm = el ? el.value : ADM_NEWWORK_;
   ADM_NEWWORK_ = nm;
   if (!String(nm).replace(/[\s　]/g, '')){
-    admSayWork_('workadd', '予定の種類の名前を入れてください。', true, 'list');
+    admSayWork_('workadd', '顔ぶれの名前を入れてください（例：役員会）。', true, 'list');
     return;
   }
   admBusy_(btn);
@@ -524,3 +524,98 @@ function closeCfg(){
   $('cfgBtn').style.display = 'inline-block';
 }
 
+/* ==================================================================
+   ★★2026-09-29q　車を出せる方（マイカー提供）を選ぶ（OHC本番 2026-09-29d の「🚗 車を出せる方を選ぶ（管理者用）」と同じ働き）。
+   　只隈さん「運転手候補をリスト管理し、その人が参加にした時だけ、乗車人数を選択できるように」
+   　「人選は開発版の管理者の画面（工事E）の中に入れる」。
+   　★名簿の「マイカー提供」の欄に入ります（サーバーの setDrivers）。
+   　★だれにも印が無い間は、だれにも「車を出せますか？」は出ません。
+   ================================================================== */
+var ADM_DRV_ = null;   /* 選んでいる途中の名前（null ＝ いま保存されている DRIVERS のまま） */
+function admDrvNow_(){ return ADM_DRV_ ? ADM_DRV_ : DRIVERS.slice(); }
+
+function admDriversHtml_(){
+  var live = adminAlive_(), on = admDrvNow_(), h = '', n = 0;
+  for (var i = 0; i < live.length; i++){
+    var m = live[i];
+    if (m.role === '保守') continue;
+    var ck = on.indexOf(m.name) >= 0;
+    if (ck) n++;
+    h += '<label style="display:block;padding:8px 4px;border-bottom:1px solid #e3e8e3;font-size:17px">' +
+           '<input type="checkbox" style="width:22px;height:22px;vertical-align:middle;margin-right:10px"' +
+             (ck ? ' checked' : '') +
+             ' onchange="admDrvToggle(\'' + esc(m.name) + '\', this.checked)">' +
+           esc(m.name) + '</label>';
+  }
+  /* ★2026-09-30a　サーバーの返事が届くまでは保存させない（端末の控えが古い・無いとき、全員チェックなしに見えるため。本番 2026-09-30a と同じ直し） */
+  return '<div class="admsec" id="admDrvSec"' + (DRIVERS_FRESH ? '' : ' data-wait="1"') + '>' +
+           '<div class="admsec-h">🚗 車を出せる方（マイカー提供）</div>' +
+           '<p class="note">印を付けた方だけに、マイカーで移動する予定で「○ 参加」を押したとき、' +
+             '<b>「車を出せますか？」</b>が出ます。<br>だれにも印が無い間は、だれにも出ません。</p>' +
+           '<p class="note" id="admDrvCount" style="font-weight:bold">いま ' + n + '人' +
+             (ADM_DRV_ ? '（まだ保存していません）' : '') + '</p>' +
+           h +
+           (DRIVERS_FRESH ? '' : '<p class="note" id="admDrvWait" style="color:#b00000">最新の内容を読み込んでいます…（終わるまで保存できません）</p>') +
+           '<button type="button" class="bigbtn" id="admDrvSave" style="margin-top:8px' + (DRIVERS_FRESH ? '' : ';opacity:.45') + '"' +
+             (DRIVERS_FRESH ? '' : ' disabled') +
+             ' onclick="adminSaveDrivers(this)">この内容で保存する</button>' +
+           admSecMsg_('drivers') +
+         '</div>';
+}
+
+/* ★2026-09-30a　返事が届いたら（applyData から）：待ちの形で出ていた選ぶ欄を最新にする。
+   　★触っていなければ描き直す。触っていたら選びかけは残し、保存だけ押せるようにする */
+function admDrvRefresh_(){
+  var el = $('admDrvSec');
+  if (!el || el.getAttribute('data-wait') !== '1') return;
+  if (!ADM_DRV_){ el.outerHTML = admDriversHtml_(); return; }
+  el.removeAttribute('data-wait');
+  var w = $('admDrvWait'); if (w) w.parentNode.removeChild(w);
+  var b = $('admDrvSave'); if (b){ b.disabled = false; b.style.opacity = ''; }
+}
+
+function admDrvToggle(name, on){
+  var a = admDrvNow_();
+  var i = a.indexOf(name);
+  if (on && i < 0) a.push(name);
+  if (!on && i >= 0) a.splice(i, 1);
+  ADM_DRV_ = a;
+  var el = $('admDrvCount');
+  if (el) el.textContent = 'いま ' + a.length + '人（まだ保存していません）';
+}
+
+function adminSaveDrivers(btn){
+  if (!DRIVERS_FRESH){ admSayAt_('drivers', '最新の内容を読み込んでいます。少し待ってから保存してください。', true, null); return; }   /* ★2026-09-30a */
+  var a = admDrvNow_(), ids = [], miss = [];
+  for (var i = 0; i < a.length; i++){
+    var id = MEMBER_ID[a[i]];
+    if (id) ids.push(id); else miss.push(a[i]);
+  }
+  /* ★断られると分かっていることは、画面で先に止めます */
+  if (miss.length){
+    admSayAt_('drivers', '会員IDが分からない方がいます（' + miss.join('、') +
+              '）。画面を開き直してから、もう一度お試しください', true, null);
+    return;
+  }
+  admBusy_(btn, '保存しています…');
+  api('POST', { action: 'setDrivers', deviceId: deviceId(), name: myName, ids: ids },
+    function(err, data){
+      admBusyEnd_();
+      if (err || !data || data.error){
+        admSayAt_('drivers', (data && data.error) ? data.error :
+          '保存できませんでした。電波の良いところで、もう一度お試しください。', true, null);
+        return;
+      }
+      try { applyData(data); } catch (eA) {}
+      /* ★2026-09-29r　返ってきた「車を出せる方」が、選んだとおりかを確かめてから「保存しました」と出す
+         　（書き込みが届かず、ふつうの読み込みの返事だけが来ることがあるため） */
+      var same = (DRIVERS.length === a.length);
+      for (var k = 0; same && k < a.length; k++){ if (DRIVERS.indexOf(a[k]) < 0) same = false; }
+      if (!same){
+        admSayAt_('drivers', '保存できたか確かめられませんでした。少し待って、もう一度「この内容で保存する」を押してください。', true, null);
+        return;
+      }
+      ADM_DRV_ = null;
+      admSayAt_('drivers', '保存しました（車を出せる方 ' + DRIVERS.length + '人）', false, null);
+    });
+}

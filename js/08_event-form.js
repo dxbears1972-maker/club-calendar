@@ -85,6 +85,14 @@ function renderStaffRows(){
     for (var k = 0; k < roles.length; k++){
       ropt += '<option value="' + esc(roles[k]) + '"' + (row.role === roles[k] ? ' selected' : '') + '>' + esc(roles[k]) + '</option>';
     }
+    /* ★2026-09-29k　下見のときは「下見」も選べる（設定の係の名前に無くても） */
+    /* ★2026-09-29o　下見の「運転手」「同行」も選べる（設定の係の名前に無くても）。係の欄に入れた方だけの予定か、その行がもともとそれのとき */
+    for (var xr = 0; xr < EXTRA_ROLES_.length; xr++){
+      var xn = EXTRA_ROLES_[xr];
+      if (roles.indexOf(xn) < 0 && (row.role === xn || ($('addTarget') && $('addTarget').value === '係のみ'))){
+        ropt += '<option value="' + xn + '"' + (row.role === xn ? ' selected' : '') + '>' + xn + '</option>';
+      }
+    }
     ropt += '<option value="その他"' + (row.role === 'その他' ? ' selected' : '') + '>その他</option>';
     var nopt = '<option value="">（名前）</option>';
     var names = realMembers_();
@@ -128,7 +136,7 @@ function refreshAddTargetWho(){
   }
   var mw = String(t).match(/^作業[:：](.+)$/);
   if (mw && !workMembers_(mw[1]).length){
-    txt += '　★作業「' + mw[1] + '」にメンバーが入っていません。';
+    txt += '　★顔ぶれ「' + mw[1] + '」にメンバーが入っていません。';
   } else if (mw){
     /* ★★2026-09-03　穴1　作業マスタの名字が名簿にないとき、押す前に名指しで知らせる。
        　まとめて登録の確認画面には前からこの警告があったのに、
@@ -139,7 +147,7 @@ function refreshAddTargetWho(){
       if (allf.indexOf(wlf[bf]) < 0) badf.push(wlf[bf]);
     }
     if (badf.length){
-      txt += '　★作業「' + mw[1] + '」の ' + badf.join('・') +
+      txt += '　★顔ぶれ「' + mw[1] + '」の ' + badf.join('・') +
              ' が名簿にありません（その方には届きません）。';
     }
   } else if (t === '係のみ' && !serializeStaff()){
@@ -246,11 +254,208 @@ function parseStaff(s){
       var name = kv[1].replace(/^\s+|\s+$/g, '');
       if (!role || !name) continue;
       /* ★★2026-09-21　「設定」の係の名前にあれば選び箱、無ければ「その他」の手入力 */
-      var known = staffRoles_().indexOf(role) >= 0;
+      var known = staffRoles_().indexOf(role) >= 0 || EXTRA_ROLES_.indexOf(role) >= 0;   /* ★2026-09-29o */
       staffRows.push({ role: known ? role : 'その他', roleFree: known ? '' : role, name: name });
     }
   }
   renderStaffRows();
+}
+
+/* ★★2026-09-29i　マイカー移動の印。
+   　新しく登録するときに「下見（係のみ）」を選んだら、最初から入れます（直すときは触りません）。 */
+function kindMycarDefault_(){
+  var sel = $('addTarget'), cb = $('addMycar');
+  if (!sel || !cb || editingId) return;
+  if (sel.value === '係のみ') cb.checked = true;
+}
+
+/* ★★2026-09-29p　「🔎 下見をする」の☑（只隈さん決定：保存したら、続けて下見の入力を開く）
+   　登録画面では山行と集会が同じ「全員」なので、山行だけに出すことはできない。
+   　→ 出欠をとる相手が「全員」で、くり返しなしのときだけ出す（下見の入口 evOpsHtml_ と同じ条件）。 */
+function shitamiRowSync_(){
+  var row = $('shitamiRow'), cb = $('addShitami');
+  if (!row || !cb) return;
+  var tgt = $('addTarget') ? $('addTarget').value : '';
+  if (editingId){ var e0 = eventOf_(editingId); tgt = e0 ? (e0.target || '') : tgt; }
+  var rep = editingId ? 'none' : ($('addRep') ? $('addRep').value : 'none');
+  var ok = !tgt && rep === 'none';
+  row.style.display = ok ? 'block' : 'none';
+  if (!ok) cb.checked = false;
+}
+
+/* ★2026-09-29p　計画表・報告書・山行LINEの欄は畳んでおく。入っている数をボタンに出す */
+function linksBoxSync_(open){
+  var box = $('linksBox'), btn = $('linksBtn');
+  if (!box || !btn) return;
+  var n = 0, ids = ['addPlan', 'addReport', 'addLineGroup'];
+  for (var i = 0; i < ids.length; i++) if ($(ids[i]) && $(ids[i]).value.replace(/\s/g, '')) n++;
+  if (open !== undefined) box.style.display = open ? 'block' : 'none';
+  var on = box.style.display !== 'none';
+  btn.innerHTML = (on ? '▾ ' : '▸ ') + '📎 計画表・報告書・山行LINE（あれば）' + (n ? '　<b>' + n + '件入っています</b>' : '');
+}
+function toggleLinksBox_(){ linksBoxSync_($('linksBox').style.display === 'none'); }
+
+/* 保存したあと、その山行の下見の入力を開く（新しい予定は、仮の番号 → 本物の番号に付け替える） */
+function shitamiAfterSave_(evId){
+  if (!evId || (SHITAMI && SHITAMI.evId === evId)) return;
+  EV_OPS_OPEN[evId] = true;
+  openShitami(evId);
+}
+
+/* ==================================================================
+   ★★2026-09-29m　下見は、山行の予定から入れる（只隈さん決定）
+   　只隈さん「山行があるから下見があるわけで、山行に付属すると考えると、
+   　山行を選んで、下見をやるとなったら日付を選んでメンバー（基本山行メンバー＋α）を選ぶ」
+   　・入口：山行の「⚙ この予定の操作」→「山行の準備」→「🔎 下見を入れる」（14_… ではなく evOpsHtml_）
+   　・押した場所のすぐ下に、日付・時刻・行く方の☑だけの小さな入力が開く。
+   　　行く方は、山行の係の方と「参加」の方に最初から☑。ほかの会員も☑で足せる。
+   　・登録すると「下見 ＜山行の題名＞」・種類は下見（係のみ）・行く方を係の欄に「下見：名前」・マイカーの印つき。
+   　・入力中にサーバーの返事で画面を作り直しても消えないよう、中身は SHITAMI にしまう。
+   　（2026-09-29k の「入力画面で種類を下見にすると本番を選ぶ」は、入口を1つにするため外した）
+   ================================================================== */
+/* ★2026-09-29o　下見の役（只隈さん「下見のリーダーとか副リーダーとか運転手とかの役割がある」）。役の無い方は「同行」 */
+var EXTRA_ROLES_ = ['運転手', '同行'];
+var SHITAMI = null;   /* { evId, y, m, d, h, mi, pick: {名前: true}, role: {名前: 役} } */
+
+/* 山行の係の方（係の名前つき）と「参加」の方 */
+function honbanNames_(ev){
+  var list = [], seen = {}, s = String(ev.staff || '').split(/[、,，]/);
+  for (var i = 0; i < s.length; i++){
+    var kv = s[i].split(/[：:]/);
+    var nm = kv.length >= 2 ? kv[1].replace(/^\s+|\s+$/g, '') : '';
+    if (nm && !seen[nm]){ seen[nm] = 1; list.push({ name: nm, why: kv[0].replace(/^\s+|\s+$/g, '') }); }
+  }
+  var yes = attOf(ev.id).yes;
+  for (var j = 0; j < yes.length; j++){
+    if (!seen[yes[j]]){ seen[yes[j]] = 1; list.push({ name: yes[j], why: '参加' }); }
+  }
+  return list;
+}
+
+function openShitami(evId){
+  var ev = eventOf_(evId);
+  if (!ev) return;
+  if (SHITAMI && SHITAMI.evId === evId){ SHITAMI = null; renderList(); return; }   /* もう一度押したら閉じる */
+  var p = String(ev.date).split('-');
+  var dt = new Date(+p[0], +p[1] - 1, +p[2]);
+  dt.setDate(dt.getDate() - 7);                     /* 最初は山行の7日前 */
+  var now = new Date(); now.setHours(0, 0, 0, 0);
+  if (dt < now) dt = now;                            /* 過ぎていれば今日 */
+  var tm = String(ev.time || '').match(/(\d{1,2}):(\d{2})/);
+  var pick = {}, role = {}, hn = honbanNames_(ev);
+  for (var i = 0; i < hn.length; i++){
+    pick[hn[i].name] = true;
+    role[hn[i].name] = (hn[i].why && hn[i].why !== '参加') ? hn[i].why : '同行';   /* 山行の係の方は同じ役、参加の方は同行 */
+  }
+  SHITAMI = { evId: evId, y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate(),
+              h: tm ? String(parseInt(tm[1], 10)) : '', mi: tm ? tm[2] : '00', pick: pick, role: role };
+  renderList();
+  try { scrollToEv(evId); var f = $('shitami-' + evId); if (f) f.scrollIntoView({ block: 'center' }); } catch (e){}
+}
+
+function shitamiSet_(k, v){ if (SHITAMI) SHITAMI[k] = v; }
+function shitamiPick_(nm, on){ if (SHITAMI) SHITAMI.pick[nm] = !!on; }
+function shitamiRole_(nm, v){ if (SHITAMI){ SHITAMI.role[nm] = v; SHITAMI.pick[nm] = true; renderList(); } }
+function shitamiDate_(v){
+  var p = String(v || '').split('-');
+  if (p.length === 3 && SHITAMI){ SHITAMI.y = +p[0]; SHITAMI.m = +p[1]; SHITAMI.d = +p[2]; }
+}
+/* 役の選び箱：クラブの係の名前＋運転手＋同行（山行でその方が付いていた役が名前に無ければ足す） */
+function shitamiRoleOpts_(cur){
+  var roles = staffRoles_().slice();
+  for (var i = 0; i < EXTRA_ROLES_.length; i++) if (roles.indexOf(EXTRA_ROLES_[i]) < 0) roles.push(EXTRA_ROLES_[i]);
+  if (cur && roles.indexOf(cur) < 0) roles.push(cur);
+  var h = '';
+  for (var j = 0; j < roles.length; j++) h += '<option value="' + esc(roles[j]) + '"' + (roles[j] === cur ? ' selected' : '') + '>' + esc(roles[j]) + '</option>';
+  return h;
+}
+
+function shitamiFormHtml_(ev){
+  if (!SHITAMI || SHITAMI.evId !== ev.id) return '';
+  var S = SHITAMI, i, o;
+  var hh = '<select onchange="shitamiSet_(\'h\', this.value)"><option value="">時間なし</option>';
+  for (i = 0; i <= 23; i++) hh += '<option value="' + i + '"' + (S.h === String(i) ? ' selected' : '') + '>' + i + '時</option>';
+  hh += '</select>';
+  var mm = '<select onchange="shitamiSet_(\'mi\', this.value)">';
+  for (i = 0; i < 60; i += 5){ o = (i < 10 ? '0' : '') + i; mm += '<option value="' + o + '"' + (S.mi === o ? ' selected' : '') + '>' + o + '分</option>'; }
+  mm += '</select>';
+  var hn = honbanNames_(ev), inH = {}, rows = '';
+  var chk = function(nm, why){
+    var q = esc(nm).replace(/'/g, '');
+    return '<table class="shrow"><tr><td><label class="shchk"><input type="checkbox"' + (S.pick[nm] ? ' checked' : '') +
+           ' onchange="shitamiPick_(\'' + q + '\', this.checked)"> ' + esc(nm) +
+           (why ? '<span class="shwhy">（' + (why === '参加' ? '山行に参加' : '山行の係') + '）</span>' : '') + '</label></td>' +
+           '<td class="shrole"><select onchange="shitamiRole_(\'' + q + '\', this.value)">' +
+             shitamiRoleOpts_(S.role[nm] || '同行') + '</select></td></tr></table>';
+  };
+  for (i = 0; i < hn.length; i++){ inH[hn[i].name] = 1; rows += chk(hn[i].name, hn[i].why); }
+  var others = '', all = realMembers_();
+  for (i = 0; i < all.length; i++) if (!inH[all[i]]) others += chk(all[i], '');
+  return '<div class="shitami" id="shitami-' + ev.id + '">' +
+      '<div class="admsec-h">🔎 下見を入れる</div>' +
+      '<label>下見の日</label>' +
+      '<input type="date" class="datein" value="' + dkey(S.y, S.m, S.d) + '" onchange="shitamiDate_(this.value)">' +
+      '<label>集合の時刻</label>' +
+      '<table class="row3"><tr><td>' + hh + '</td><td>' + mm + '</td></tr></table>' +
+      '<label>行く方</label>' +
+      (rows ? '<p class="note">山行の係の方と「参加」の方に、最初から☑を入れています。右の選び箱で下見の役を選べます（役の無い方は「同行」）。</p>' + rows
+            : '<p class="note">山行の係・参加の方がまだいません。下から選んでください。</p>') +
+      (others ? '<div class="shsub">ほかの会員（＋αの方は☑）</div>' + others : '') +
+      '<button type="button" class="subbtn" onclick="submitShitami()">この内容で下見を登録する</button>' +
+      '<button type="button" class="cancelbtn" onclick="openShitami(\'' + ev.id + '\')">やめる</button>' +
+    '</div>';
+}
+
+function submitShitami(){
+  if (!SHITAMI) return;
+  var S = SHITAMI, ev = eventOf_(S.evId);
+  if (!ev) return;
+  var y = parseInt(S.y, 10), m = parseInt(S.m, 10), d = parseInt(S.d, 10);
+  var ck = new Date(y, m - 1, d);
+  if (ck.getMonth() !== m - 1){ alert('その月に ' + d + '日 はありません。日付を確かめてください'); return; }
+  var key = dkey(y, m, d);
+  if (key >= ev.date){ alert('下見の日が、山行（' + ev.date + '）と同じか後になっています。日付を確かめてください'); return; }
+  var name = getName();
+  if (!name){ showNamePick(); return; }
+  var names = [];
+  for (var nm in S.pick) if (S.pick.hasOwnProperty(nm) && S.pick[nm]) names.push(nm);
+  if (!names.length){ alert('行く方を1人以上選んでください'); return; }
+  names.sort(byMember_);
+  var staff = sortStaffStr(names.map(function(n){ return (S.role[n] || '同行') + '：' + n; }).join('、'));
+  var time = S.h !== '' ? S.h + ':' + S.mi : '';
+  var title = '下見 ' + ev.title;
+
+  /* 届く相手と、届かない方（予定を入れる画面と同じ知らせ方） */
+  var who = targetNamesFor_('係のみ', staff, name);
+  var q = '「' + title + '」を ' + m + '月' + d + '日 に登録します。\n\n■ 行く方：' + names.join('、') + '\n' +
+          '■ お知らせが届くのは、行く方とあなた（' + who.length + '人）だけです。\n';
+  var miss = lineMissing_(who);
+  if (miss && miss.length) q += '■ このうち LINEでは届かない方：' + miss.join('、') + '\n';
+  var none = unreachable_(who);
+  if (none && none.length) q += '■ どの手段でも届かない方：' + none.join('、') + '（お口ぞえが要ります）\n';
+  if (!confirm(q + '\nよろしいですか？')) return;
+
+  var tid = 'tmp' + new Date().getTime() + '_0';
+  var memo = fmtDateTxt_(ev.date) + '「' + ev.title + '」の下見';
+  state.events.push({ id: tid, date: key, title: title, time: time, place: ev.place || '', memo: memo,
+    staff: staff, owner: name, ownerId: idOf(name), target: '係のみ', plan: '', report: '', lineGroup: '',
+    mycar: '1', locked: '', settle: '', cancelled: '', cancelNote: '' });
+  post({ action: 'addEvents', dates: [key], title: title, time: time, place: ev.place || '', staff: staff,
+         target: '係のみ', memo: memo, plan: '', report: '', lineGroup: '', mycar: '1', mail: true, owner: name },
+       '下見を登録しました（' + m + '月' + d + '日）', null, function(){
+    state.events = state.events.filter(function(e3){ return e3.id !== tid; });
+    render();
+  });
+  var back = S.evId;
+  SHITAMI = null;
+  render();
+  try { backToEv_(back); } catch (eB){}
+}
+
+/* 「11月12日」のような字（HTMLを含まない） */
+function fmtDateTxt_(key){
+  var p = String(key || '').split('-');
+  return (+p[1]) + '月' + (+p[2]) + '日';
 }
 
 function setMailRow(isEdit){
@@ -266,6 +471,8 @@ function openAddForm(y, m, d){
   fillDateSelects(y, m, d);
   if (!$('addHour').innerHTML) fillTimeSelects();
   resetStaff();
+  try { shitamiRowSync_(); } catch (eS) {}   /* ★2026-09-29p */
+  try { linksBoxSync_(); } catch (eL) {}
   if ($('addCard').scrollIntoView) $('addCard').scrollIntoView(true);
 }
 
@@ -281,6 +488,9 @@ function closeAddForm(){
   $('addPlan').value = '';
   $('addReport').value = '';
   $('addLineGroup').value = '';
+  if ($('addMycar')) $('addMycar').checked = false;   /* ★2026-09-29i */
+  if ($('addShitami')) $('addShitami').checked = false;   /* ★2026-09-29p */
+  try { linksBoxSync_(false); } catch (eL) {}
   $('addRep').value = 'none';
   $('repLenWrap').style.display = 'none';
   closePicker();
@@ -289,6 +499,40 @@ function closeAddForm(){
   $('addTitleH').innerHTML = '予定を追加';
   $('addBtn').innerHTML = 'この内容で登録する';
   $('repRow').style.display = 'block';
+}
+
+/* ★★2026-09-29j　「編集」を閉じたら（保存しても、やめても）、元の予定の場所へ戻ります。
+   　これまでは入力画面へ飛んだまま戻らず、どの予定を直したのか探し直す必要がありました。
+   　・日付を変えた予定は、変えた先の月へ移って、その予定を出します。
+   　・終わって3日過ぎて隠れている予定なら、表示してから移ります。
+   　・サーバーの返事が届くと画面を作り直すので、8秒の間は合わせ直します（gotoStick）。 */
+function backToEv_(id){
+  if (!id) return;
+  var ev = null;
+  for (var i = 0; i < state.events.length; i++){
+    if (state.events[i].id === id) ev = state.events[i];
+  }
+  if (!ev) return;
+  var p = String(ev.date || '').split('-');
+  var y = parseInt(p[0], 10), m = parseInt(p[1], 10);
+  if (y && m && (y !== state.year || m !== state.month)){
+    state.year = y; state.month = m;
+    render();
+  }
+  if (!$('ev-' + id) && !state.showOldEvents){
+    state.showOldEvents = true;
+    renderList();
+  }
+  scrollToEv(id);
+  gotoStick = id;
+  setTimeout(function(){ if (gotoStick === id) gotoStick = ''; }, 8000);
+}
+
+/* 入力画面の「やめる」。編集中だったなら、その予定へ戻ります（★2026-09-29j） */
+function cancelAddForm_(){
+  var id = editingId;
+  closeAddForm();
+  if (id) backToEv_(id);
 }
 
 function editEvent(evId){
@@ -311,6 +555,10 @@ function editEvent(evId){
   $('addPlan').value = ev.plan || '';
   $('addReport').value = ev.report || '';
   $('addLineGroup').value = ev.lineGroup || '';
+  if ($('addMycar')) $('addMycar').checked = !!ev.mycar;   /* ★2026-09-29i */
+  if ($('addShitami')) $('addShitami').checked = false;   /* ★2026-09-29p */
+  try { shitamiRowSync_(); } catch (eS) {}
+  try { linksBoxSync_(!!(ev.plan || ev.report || ev.lineGroup)); } catch (eL) {}   /* 入っていれば開いておく */
   $('addHour').value = '';
   $('addMin').value = '00';
   var tm = ev.time ? ev.time.match(/(\d{1,2}):(\d{2})/) : null;
@@ -359,6 +607,7 @@ function fillDateSelects(y, m, d){
     html += '<option value="' + i + '"' + (i === d ? ' selected' : '') + '>' + i + '日</option>';
   }
   $('addD').innerHTML = html;
+  if ($('addDate')) $('addDate').value = dkey(y, m, d);   /* ★2026-09-29o カレンダーにも同じ日 */
 }
 
 function submitAdd(){
@@ -400,6 +649,17 @@ function submitAdd(){
     alert('リンクは https:// で始まるURLを貼り付けてください');
     return;
   }
+  /* ★2026-09-29i　マイカー移動の印（'1'＝あり／''＝なし） */
+  var mycar = ($('addMycar') && $('addMycar').checked) ? '1' : '';
+  /* ★2026-09-29p　下見をする（保存したら、続けて下見の入力を開く） */
+  var wantShitami = !!($('addShitami') && $('addShitami').checked && $('shitamiRow').style.display !== 'none');
+  if (wantShitami){
+    var nw0 = new Date();
+    if (dkey(y, m, d) <= dkey(nw0.getFullYear(), nw0.getMonth() + 1, nw0.getDate())){
+      alert('下見は山行より前の日に入れます。\nこの山行は今日か過ぎた日なので、「🔎 下見をする」の☑を外してください。');
+      return;
+    }
+  }
 
   /* 編集モードなら既存の予定を書き換える */
   if (editingId){
@@ -436,6 +696,7 @@ function submitAdd(){
       ue.plan  = plan;
       ue.report = report;
       ue.lineGroup = lineGroup;
+      ue.mycar = mycar;
     }
 
     post({
@@ -452,6 +713,7 @@ function submitAdd(){
       plan: plan,
       report: report,
       lineGroup: lineGroup,
+      mycar: mycar,
       name: name
     }, '予定を変更しました', null, function(){
       /* 送れなかったときは、元の内容に戻す */
@@ -466,6 +728,8 @@ function submitAdd(){
     state.month = m;
     closeAddForm();
     render();
+    backToEv_(editId);   /* ★2026-09-29j　直した予定の場所へ戻る */
+    if (wantShitami) shitamiAfterSave_(editId);   /* ★2026-09-29p */
     return;
   }
 
@@ -539,7 +803,7 @@ function submitAdd(){
       place: $('addPlace').value, memo: $('addMemo').value,
       staff: serializeStaff(), owner: name, ownerId: idOf(name),
       target: $('addTarget').value,
-      plan: plan, report: report, lineGroup: lineGroup,
+      plan: plan, report: report, lineGroup: lineGroup, mycar: mycar,
       locked: '', settle: '', cancelled: '', cancelNote: ''
     });
   }
@@ -556,6 +820,7 @@ function submitAdd(){
     plan: plan,
     report: report,
     lineGroup: lineGroup,
+    mycar: mycar,
     mail: $('addMail').checked,
     owner: name
   }, '予定を登録しました（' + dates.length + '件）', function(){
@@ -565,9 +830,27 @@ function submitAdd(){
       var e2 = state.events[si];
       if (e2.date === dates[0] && e2.title === title) newest = e2;
     }
-    if (newest) offerShare(eventShareText(newest));
+    /* ★2026-09-29p　下見の入力中なら、仮の番号から本物の番号へ付け替え、LINEの案内は場所を動かさずに出す */
+    var shOpen = SHITAMI && tmpIds.indexOf(SHITAMI.evId) >= 0;
+    if (shOpen && newest){
+      SHITAMI.evId = newest.id;
+      EV_OPS_OPEN[newest.id] = true;
+      renderList();
+    }
+    if (newest){
+      if (shOpen){
+        shareText = eventShareText(newest);
+        $('sharePrev').innerHTML = esc(shareText);
+        $('shareGo').href = 'https://line.me/R/share?text=' + encodeURIComponent(shareText);
+        $('shareCard').style.display = 'block';
+        try { var f2 = $('shitami-' + newest.id); if (f2) f2.scrollIntoView({ block: 'center' }); } catch (eF2){}
+      } else {
+        offerShare(eventShareText(newest));
+      }
+    }
   }, function(){
     /* 送れなかったときは、仮に出していた分を取り消す */
+    if (SHITAMI && tmpIds.indexOf(SHITAMI.evId) >= 0) SHITAMI = null;   /* ★2026-09-29p */
     state.events = state.events.filter(function(e3){ return tmpIds.indexOf(e3.id) < 0; });
     render();
   });
@@ -576,5 +859,6 @@ function submitAdd(){
   state.month = m;
   closeAddForm();
   render();
+  if (wantShitami) shitamiAfterSave_(tmpIds[0]);   /* ★2026-09-29p　続けて下見の入力を開く */
 }
 

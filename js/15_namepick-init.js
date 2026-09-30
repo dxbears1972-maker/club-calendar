@@ -410,6 +410,7 @@ function init(){
       ADMIN_NAME = ADMINS[0] || '';
       TAKEN    = cd0.taken    || [];
       CONTACTS = cd0.contacts || [];
+      DRIVERS  = cd0.drivers  || [];   /* ★2026-09-29q */
       MEMBER_YOMI = {}; MEMBER_ID = {}; ID_NAME = {};
       for (var ci = 0; ci < MEMBERS.length; ci++){
         MEMBER_YOMI[MEMBERS[ci]] = (cd0.yomis && cd0.yomis[ci]) || '';
@@ -572,13 +573,14 @@ function init(){
     var n = new Date();
     openAddForm(state.year, state.month, state.year === n.getFullYear() && state.month === n.getMonth() + 1 ? n.getDate() : 1);
   };
-  $('addCancel').onclick = closeAddForm;
+  $('addCancel').onclick = cancelAddForm_;   /* ★2026-09-29j 編集をやめたら元の予定へ */
   $('addBtn').onclick = submitAdd;
   $('refPlan').onclick = function(){ openPicker('plan'); };
   $('refReport').onclick = function(){ openPicker('report'); };
   $('pickerClose').onclick = closePicker;
   $('addRep').onchange = function(){
     $('repLenWrap').style.display = ($('addRep').value !== 'none') ? 'block' : 'none';
+    try { shitamiRowSync_(); } catch(eS){}   /* ★2026-09-29p くり返しのときは下見の☑を隠す */
     try { refreshRepPreview(); } catch(e){}
   };
   /* ★2026-09-03　期間・日付を変えても、できる日の一覧を出し直す */
@@ -586,6 +588,13 @@ function init(){
   $('addY').onchange = function(){ try { refreshRepPreview(); } catch(e){} };
   $('addM').onchange = function(){ try { refreshRepPreview(); } catch(e){} };
   $('addD').onchange = function(){ try { refreshRepPreview(); } catch(e){} };
+  /* ★2026-09-29o　カレンダーで選んだ日を、隠してある3つの選び箱へ（空にされたら元の日へ戻す） */
+  if ($('addDate')) $('addDate').onchange = function(){
+    var p = String(this.value || '').split('-');
+    if (p.length === 3) fillDateSelects(+p[0], +p[1], +p[2]);
+    else this.value = dkey(+$('addY').value, +$('addM').value, +$('addD').value);
+    try { refreshRepPreview(); } catch(e){}
+  };
   $('reloadBtn').onclick = function(){ load(true); };
   $('cfgBtn').onclick = openCfg;
 

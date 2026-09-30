@@ -114,7 +114,8 @@ function parseImport(text){
           continue;
         }
         evObj.target = tg0;
-        evObj.kind = kindRaw;   /* ★確認画面に、貼られたままの種類を出すため */
+        evObj.kind = kindRaw;
+        evObj.mycar = kindMycar_(kindRaw);   /* ★2026-09-29i */   /* ★確認画面に、貼られたままの種類を出すため */
       }
     }
     evs.push(evObj);
@@ -182,7 +183,7 @@ function renderBulkTable(){
       '<div class="bfield"><label>集合場所</label>' +
         '<input type="text" value="' + esc(r.place) + '" placeholder="例：えるる 駐車場" onchange="bulkChg(' + i + ',\'place\',this.value)"></div>' +
 
-      '<div class="bfield"><label>種類（＝誰に届くか）</label>' +
+      '<div class="bfield"><label>種類（＝出欠をとる相手）</label>' +
         '<select onchange="bulkChg(' + i + ',\'kind\',this.value)">' + ko + '</select>' +
         '<div class="bhint" id="bwho' + i + '"></div></div>' +
 
@@ -232,7 +233,7 @@ function updateBulkCard_(i){
         var wl = workMembers_(mw[1]), all = realMembers_(), bad = [];
         for (var b = 0; b < wl.length; b++){ if (all.indexOf(wl[b]) < 0) bad.push(wl[b]); }
         if (!wl.length){
-          txt += '　★作業「' + mw[1] + '」にメンバーが入っていません'; ng = true;
+          txt += '　★顔ぶれ「' + mw[1] + '」にメンバーが入っていません'; ng = true;
         } else if (bad.length){
           txt += '　★' + bad.join('・') + ' が名簿にありません（その方には届きません）'; ng = true;
         }
@@ -284,6 +285,13 @@ function bulkChg(i, k, v){
 function bulkDel(i){ bulkRows.splice(i, 1); renderBulkTable(); }
 function bulkAddRow(){ bulkRows.push(bulkNewRow_()); renderBulkTable(); }
 
+/* ★★2026-09-29i　まとめて登録の「種類」が 山行・下見 なら、マイカー移動の印を入れる。
+   　★新しくできる予定だけに効きます（すでにある予定の印は、サーバーが触りません）。 */
+function kindMycar_(kind){
+  var k = String(kind == null ? '' : kind).replace(/[\s　]/g, '');
+  return (k === '山行' || k === '下見') ? '1' : '';
+}
+
 /* 表 → 予定の配列（くり返しをここで展開する） */
 function bulkBuildList_(){
   var out = [], errs = [];
@@ -301,7 +309,7 @@ function bulkBuildList_(){
       var ev = { date: ds[j], title: ttl, time: String(r.time || ''),
                  place: String(r.place || ''), memo: '', plan: '', report: '',
                  staff: String(r.staff || '') };
-      if (r.kind) { ev.target = tg; ev.kind = r.kind; }
+      if (r.kind) { ev.target = tg; ev.kind = r.kind; ev.mycar = kindMycar_(r.kind); }   /* ★2026-09-29i */
       out.push(ev);
     }
   }
@@ -439,14 +447,14 @@ function confirmAndPostEvents2_(events, name){
     if (mwc){
       var wlc = workMembers_(mwc[1]);
       if (!wlc.length){
-        warn.push('・' + it2.title + '：作業「' + mwc[1] + '」にメンバーが入っていません');
+        warn.push('・' + it2.title + '：顔ぶれ「' + mwc[1] + '」にメンバーが入っていません');
       } else {
         /* ★修正3　マスタの名字が名簿にない（打ち間違い）を、押す前に知らせる */
         var allc = realMembers_(), badc = [];
         for (var b0 = 0; b0 < wlc.length; b0++){
           if (allc.indexOf(wlc[b0]) < 0) badc.push(wlc[b0]);
         }
-        if (badc.length) warn.push('・' + it2.title + '：作業「' + mwc[1] + '」の ' +
+        if (badc.length) warn.push('・' + it2.title + '：顔ぶれ「' + mwc[1] + '」の ' +
           badc.join('・') + ' が名簿にありません（その方には届きません）');
       }
     } else if (tg2 === '係のみ' && !String(it2.staff || '')){
@@ -489,7 +497,7 @@ function confirmAndPostEvents2_(events, name){
   msg += '\n\nまちがえても、あとから直せます・消せます';
   if (warn.length){
     msg += '\n\n★ご確認ください\n' + warn.join('\n');
-    if (solo) msg += '\n　種類と、作業のメンバー・係の欄をお確かめください。';
+    if (solo) msg += '\n　出欠をとる相手と、決まった顔ぶれ・係の欄をお確かめください。';
   }
   msg += '\n\n登録してよろしいですか？';
   if (!confirm(msg)) return;

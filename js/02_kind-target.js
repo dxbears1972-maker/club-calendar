@@ -67,14 +67,17 @@ function fillTargetSelect_(){
   for (var q1 = 0; q1 < ws.length; q1++){
     var op = document.createElement('option');
     op.value = '作業:' + ws[q1];
-    op.text  = ws[q1] + '（この作業の方だけ）';
+    op.text  = ws[q1] + 'の方だけ（決まった顔ぶれ）';   /* ★2026-09-29n */
     sel.appendChild(op);
   }
   if (cur){ try { sel.value = cur; } catch (e) {} }
   /* ★2026-09-03　種類を変えたら、届く相手を出し直す */
   if (!sel.getAttribute('data-whobound')){
     sel.setAttribute('data-whobound', '1');
-    sel.onchange = function(){ try { refreshAddTargetWho(); } catch(e){} };
+    sel.onchange = function(){ try { refreshAddTargetWho(); } catch(e){}
+      try { kindMycarDefault_(); } catch(e){}
+      try { shitamiRowSync_(); } catch(e){}   /* ★2026-09-29p 全員でなければ下見の☑を隠す */
+      try { renderStaffRows(); } catch(e){} };   /* ★2026-09-29k 下見なら係の選び箱に「下見」 */   /* ★2026-09-29i 下見ならマイカーの印を入れる */
   }
   try { refreshAddTargetWho(); } catch(e){}
 }
