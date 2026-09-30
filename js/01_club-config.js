@@ -34,6 +34,10 @@ var IS_DEV_PAGE_ = /\/ohc-calendar\/dev\//.test(String((window.location && windo
 var CLUB_LAST_KEY = IS_DEV_PAGE_ ? 'dev_clubId' : 'clubId';   /* ★この控えだけは、クラブIDを付けません */
 
 function pickClubId_(){
+  /* ★★2026-10-01（OHCの合流）OHCの住所（…/ohc-calendar/）で開いたら、いつも OHC です。
+     　同じ github.io の下で ?club=test5 などを開いた端末でも、OHC の会員の画面が別のクラブにならないように。
+     　★ここ（club-calendar）と開発版（…/ohc-calendar/dev/）では、この行は何もしません。 */
+  try { if (/\/ohc-calendar\/(index\.html)?$/.test(String(window.location.pathname || ''))) return 'ohc'; } catch(eR){}
   var raw = '';
   try {
     var m = String(window.location.search || '').match(/[?&]club=([^&]+)/);

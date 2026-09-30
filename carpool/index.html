@@ -415,13 +415,19 @@
 
 /* ==================================================================
    ★2026-09-23（【A】新クラブ用 club-calendar）どのクラブの、どのサーバーにつなぐか
+   ★★2026-10-01（OHCの合流）この1本を、OHC の住所（…/ohc-calendar/carpool/）にもそのまま置きます。
+   　club-calendar と ohc-calendar のルートで、中身は1文字も違いません。
 
-   ★このリポジトリの精算アプリは、新クラブ用GASの1本だけにつなぎます。
-   ・どのクラブか  … URL の ?club=xxx で決まります（無ければ端末の控え）
-   ・どのサーバーか … 下の CAL_API 1本だけ（?gas=dev の旗はありません）
+   ・どのクラブか  … URL の ?club=xxx で決まります（無ければ端末の控え）。
+   　　　　　　　　　 ★OHC の住所で開いたときは、いつも ohc。
+   ・どのサーバーか … ふだんは全クラブの本番GAS（新クラブ用GAS）。
+   　　　　　　　　　 URL に ?gas=dev が付いているときだけ開発版GASへ（開発版は ohc しか知りません）。
    ================================================================== */
-var CAL_API  = "https://script.google.com/macros/s/AKfycbwVyvBrEE03VMpc03P5fOlrcwkqlYW_pKqBcPF7l6wjy55s3790AIyLzQCKjcCsI1Y/exec";
-var USE_DEV  = false;   /* ★2026-10-01（㊴を写した日）新クラブ用には開発版GASの旗は無い。帰る日の精算へのリンクが使う名前だけ置く */
+var GAS_MAIN = "https://script.google.com/macros/s/AKfycbwVyvBrEE03VMpc03P5fOlrcwkqlYW_pKqBcPF7l6wjy55s3790AIyLzQCKjcCsI1Y/exec";
+var GAS_DEV  = "https://script.google.com/macros/s/AKfycbz6Tc9Tbfq5Eagp3MG0hYR8aA2AqQu8CkNR_g0950Qm_is2q6x5HZlLxWoVSsaQ6oeF/exec";
+var USE_DEV  = /[?&]gas=dev(&|$)/.test(location.search || "");
+var CAL_API  = USE_DEV ? GAS_DEV : GAS_MAIN;
+var IS_OHC_HOME = /\/ohc-calendar\/carpool\//.test(location.pathname || "");
 
 /* クラブのID。★カレンダーと同じ控え（clubId）を使います。
    　同じ場所に置いてあるアプリなので、カレンダーで一度開けばこちらも分かります。 */
@@ -434,6 +440,7 @@ var CLUB_LAST_KEY = "clubId";
 var IS_DEV_COPY = /\/dev\/carpool\//.test(location.pathname || "");
 function clubOk_(v) { return /^[a-z0-9]{2,10}$/.test(String(v || "")); }
 function pickClubId_() {
+  if (IS_OHC_HOME) return "ohc";   /* ★2026-10-01（OHCの合流） */
   try {
     var m = (location.search || "").match(/[?&]club=([^&]+)/);
     if (m) {
@@ -502,7 +509,10 @@ if (CLUB_ID === "ohc") {
 /* カレンダーの画面URL。記録後にその予定の場所へ戻るのに使う。
    ★2026-09-07（工事B B-3）サーバー（設定シートの「アプリのURL」）が届いたら
    　差し替わります。ここに書いてあるのは、まだ届いていないときの予備です。 */
+/* ★★2026-10-01（OHCの合流）予備は「この精算アプリの1つ上」（…/club-calendar/・…/ohc-calendar/・…/ohc-calendar/dev/） */
 var CAL_PAGE = "https://dxbears1972-maker.github.io/club-calendar/";
+try { CAL_PAGE = location.origin + String(location.pathname || "").replace(/carpool\/[^\/]*$/, ""); } catch (eCP) {}
+try { var bk0 = document.getElementById("backCalBtn"); if (bk0) bk0.href = CAL_PAGE; } catch (eBk) {}
 
 /* ------------------------------------------------------------------
    ★2026-09-07（工事B B-3）クラブの見た目と呼び名
